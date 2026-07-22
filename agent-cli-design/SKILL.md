@@ -1,59 +1,51 @@
 ---
 name: agent-cli-design
-description: Design a command-line interface (binary + companion agent skill) whose primary user is an AI coding agent rather than a human, as a thin client over an existing system's API. Use when building, extending, or reviewing a CLI meant to be driven by agents — deciding its I/O contract, error model, command surface, what to expose vs hide from the underlying API, whether to add or reuse backend endpoints, and how to write the skill that teaches an agent to use it.
+description: Design or review an agent-first CLI and its companion skill as a thin, machine-readable client over an existing system API. Use when deciding the CLI's I/O and error contract, command and safety surface, API boundaries, domain model exposure, or the skill that teaches agents to operate it.
 ---
 
-# Designing an Agent-First CLI
+# Design an Agent-First CLI
 
-This skill is for building a CLI whose main consumer is an **AI agent**, not a human, layered as a thin client over an existing system's API. It also covers the companion **skill** that teaches an agent to drive that CLI. The two are one product: a contract a machine can branch on reliably.
+Treat the CLI and its companion skill as one product: a contract an agent can branch on reliably.
 
-The north star, from which almost everything else follows:
+> Design every surface so the agent's next action is determinable without guessing, parsing prose, recalling hidden knowledge, or firing a request blind.
 
-> **The reader is an agent.** A human scans, infers, and tolerates prose. An agent parses, branches, and acts. Design every surface so the agent's next action is *determinable without guessing* — never by parsing prose, never by recalling hidden knowledge, never by firing a request blind.
+## 1. Make the CLI a machine contract
 
-Work the three layers below in order. They are not independent: the I/O contract shapes what the skill can promise, and the "expose vs hide" decisions shape both.
+- **Keep stdout machine-readable.** Emit exactly one structured success value to stdout. Send progress, warnings, notices, and diagnostics to stderr.
+- **Make errors branchable.** Return a stable category and code, a human message, and separate actionable fields such as the missing role or retry target. Map categories consistently to exit codes. Never require the agent to parse message text. Include the literal next command or remedy when it is unambiguous.
+- **Support on-demand introspection.** Let the agent inspect a command's inputs, permissions, and risk without carrying the whole API surface in context. Keep introspection of the client contract unauthenticated, side-effect free, and locally available. A `schema <command>` verb is one suitable design.
+- **Make safety guarantees exact.** Let agents preview writes or provide an equivalent risk-control mechanism. If `--dry-run` promises a local preview, perform full local validation, print the exact request, and do not touch the network. Never print secrets.
+- **Represent collection state honestly.** Expose pagination metadata and a way to continue or fetch all results. Return per-item batch outcomes so partial failures are directly retryable.
 
-## 1. The I/O contract (the highest-leverage layer)
+## 2. Put behavior and truth in the right layer
 
-Get this right first; the rest composes on top.
+- **Verify current code before designing against it.** Treat proposals and docs as intent; confirm the actual API, fields, and semantics in the implementation.
+- **Reuse before extending.** Exhaust reasonable compositions of existing read, query, and batch interfaces before adding an endpoint. Add one only when the existing surface cannot reach the goal with acceptable correctness or round trips.
+- **Keep the CLI thin.** Put state machines, authorization, and domain invariants on the server. Do not duplicate authorization checks in the CLI; surface the server's failure and exact required role. Keep the normal path close to parse inputs → call the API → render the result. Fix shared contract defects at the source instead of teaching CLI-specific workarounds.
+- **Expose facts, not lossy UI projections.** Return the domain's independent state axes. Do not make agents branch on a fused display status that can misrepresent edge states.
+- **Make writes recoverable.** Prefer reversible operations and gate or omit unnecessary irreversible ones. Make writes safely repeatable; prefer server-side idempotency, and keep any unavoidable CLI-side resolution explicit and minimal.
+- **Detect contract drift early.** Version the client against the server contract so incompatible changes fail as early as practical, ideally at build time.
 
-- **stdout is data; stderr is everything else.** On success, print exactly one structured object (e.g. a JSON envelope) to stdout. Warnings, progress, notices, diagnostics all go to stderr. An agent must be able to consume stdout whole without scraping fields out of a human table.
-- **Errors are an API contract, not a message.** The exit code is a pure function of one error category enum (auth / permission / not-found / precondition / validation / network / …). The structured error carries each fact as its own field — a machine-branchable code, the human message, and any actionable datum (e.g. the exact missing role). The agent branches on the *fields*; it must **never parse the prose message**. If the backend collapses distinct failures into one coarse status on the wire, that is a contract defect worth fixing at the source — see §2.
-- **Carry the next action in the error.** Where a failure has an obvious remedy, put the literal next command (or the exact missing role) in a structured `hint`/`role` field, so the agent acts without inferring it.
-- **Make the tool self-describing.** Provide a `schema <command>` introspection that returns one command's inputs, the role it needs, and its risk — so the agent inspects on demand instead of carrying the whole API surface in its context. Introspection needs no auth and is free.
-- **Every write previews with `--dry-run`, and dry-run must truly not touch the network.** It runs the full *local* chain (flag/enum validation, file/stdin resolution, the command's own checks) and prints the exact request it would send, then stops. A dry-run that dials during resolution is a broken promise; the same goes for "the token is never printed." These safety guarantees are part of the contract — hold them exactly.
-- **Paginate honestly.** List output must signal whether more pages exist (a returned/total/has-more/next-cursor block) and offer a way to fetch all. An agent must never be led to assume the first page is the whole set.
-- **Partial-failure is machine-diffable.** Batch verbs return per-item results so a half-successful batch can be retried for only the failed items.
+## 3. Write the companion skill as a decision guide
 
-## 2. Interfaces: extreme restraint before adding anything
+Assume the agent reading the skill is already installed and configured. Teach it how to reason about the domain and use the CLI, not how the skill itself was built.
 
-The strongest discipline here is **not** "the CLI needs X, so add endpoint X."
+- **Trigger on user scenarios.** In frontmatter, state what the skill does and the situations in which users need it, including requests that do not name the tool. Avoid verb catalogs, over-broad or alarming triggers, and design-history narration.
+- **Lead with the domain and the work.** Establish the minimum mental model before the workflow. Put setup and authentication guidance next to the failures that make it actionable, not in a mandatory preamble.
+- **Spend context only on non-inferable knowledge.** Include surprising side effects, lossy fields, domain constraints, and decision boundaries. Cut generic advice and obvious mechanics; state domain-specific defaults whenever they affect branching or user-visible outcomes.
+- **Match precision to the knowledge.** State invariants exactly. Express variable decisions as a safe default plus precise conditions for asking, stopping, or branching. Resolve volatile schemas, commands, and component details through current introspection or references rather than copying them into the workflow.
+- **Give each fact one owner.** Keep workflow and selection guidance in the main skill; keep independently owned or conditionally relevant details in direct references. Split by ownership, change cadence, or conditional relevance—not by arbitrary file count—and state when each reference must be read.
+- **Define completion, not just actions.** Tell the agent how to re-read and verify the resulting system state or artifact. A successful command or syntax validator alone is not proof of business correctness.
+- **Fix causes instead of adding warnings.** Remove instructions that induce unwanted behavior. If the CLI or API cannot expose a required fact reliably, repair that contract rather than compensate with prose. Keep warnings only for states proven reachable in the current system.
+- **Version the skill with the CLI.** Make drift detectable. Embedding the canonical skill in the binary and exposing it through a read command is one strong implementation, not the only one.
 
-- **If an existing interface can do it, do not add one.** Before proposing any new endpoint, *exhaust the combinations of what already exists*. Most "missing" capabilities — derived state, aggregate statistics, multi-axis views — turn out to be composable from current read/query/batch endpoints. Only add an endpoint when you have verified no existing combination reaches the goal in an acceptable number of round-trips.
-- **Verify against the code, not against the design doc.** A proposal states intent; the code states fact. Before building on an interface, confirm it actually exists and that its semantics are what they were described to be. Assumptions about field names, flags, and behaviors that "should" be there are a common source of wrong implementations.
-- **A "for the CLI" fix that repairs a shared contract belongs at the source.** If the change you need (e.g. emitting a structured error code instead of a stringified one) actually fixes a defect every client of that API shares, make it server-side rather than working around it in the CLI. The CLI then reads the improved contract with no special-casing.
-- **Judge conventions against the nearest neighbor, not the whole repo.** When deciding whether to add validation annotations, error styles, naming, etc., the reference frame is the *immediate sibling* messages/endpoints in the same subsystem — not a repo-wide statistic. Introducing a new convention into a subsystem that has consistently avoided it is a subsystem-level decision, not something a small change should start unilaterally.
+## 4. Iterate from evidence
 
-## 3. Keep the CLI thin, and expose the *essential* model
+1. Start from a real user request, failure, trace, or output artifact.
+2. Locate the missing knowledge or defect in the correct layer: server, API, CLI, skill workflow, reference, or deterministic script.
+3. Make the smallest root-level change and remove guidance it makes obsolete.
+4. Run structural validation and targeted regression tests.
+5. Forward-test substantial changes with a fresh agent, the real skill, and representative raw inputs. Do not leak the expected answer, suspected bug, or prior conclusions. Use a sandbox or draft, and obtain approval before a test would mutate live state.
+6. Inspect the final artifact and remote state, not only command success. If forward-testing succeeds only with conversation history or leaked context, the skill is incomplete.
 
-- **No business logic in the CLI.** The state machine, authorization, and invariants live server-side. The CLI carries the caller's credentials, is bound by the same rules, and does: parse flags → one call → render. It never re-checks roles locally; it surfaces the server's authorization failure (with the exact required role) so the agent learns from the failure.
-- **Expose the domain's orthogonal facts, not the operations-UI's lossy projection.** Systems built for human operators often fuse several independent truths into one display status — and such fused fields are frequently *lossy* (they mislabel edge states). For an agent, expose the underlying independent axes and let it reason on those. Any field that can be wrong, even at the margins, must never be something a client branches on — at most keep it as a clearly-labeled display hint.
-- **Hide irreversible/dangerous capabilities.** Prefer recoverable verbs (e.g. archive) and do not expose hard-destructive ones. The agent should not be one mistaken call away from unrecoverable loss; gate or omit such operations.
-- **Add client-side idempotency where the server lacks it.** If a create call errors on a duplicate key rather than upserting, implement an idempotent verb in the CLI (resolve-then-branch: create / reuse / restore) so an agent can safely re-run.
-- **Pin the client to the same API/contract version as the server**, so the typed client tracks the contract and an incompatible change fails fast (at build) instead of silently at runtime.
-
-## 4. The companion skill: a manual for an agent that is already set up
-
-The skill is the agent's playbook. The failures here are subtle and high-signal — most come from forgetting *who* reads it.
-
-- **Open with the domain and the work, not with setup.** The agent reading the skill is already installed and configured. Lead with what the system is and the mental model it must reason in. Push setup/auth down to a *troubleshooting* note placed where it becomes actionable (next to the error rule for auth failures) — not as a mandatory preamble. Never instruct the skill to install itself; by the time it's read, it's installed.
-- **Spend words only on what the agent cannot infer.** Non-obvious facts earn their place: the orthogonal state model, a verb that has a surprising side effect (e.g. "approving also publishes to a channel"), a field that is lossy and must not be trusted. Default behavior needs no instruction. Before keeping any sentence, ask: *would a capable agent do this anyway?* If yes, cut it.
-- **Fix behavior at the root; don't paper over it with prose.** If the agent does something unwanted (e.g. eagerly verifying identity before every task), find the instruction in the skill that *induces* it and remove that — do not add a sentence telling it not to. "Do not think about X" only plants X. Suppressing a symptom with text while leaving the cause is the most common skill-writing mistake.
-- **Trigger on scenarios, not a verb catalog.** The description frontmatter is what decides whether the skill is invoked. Write one line of *what it is* and one line of *when to use it phrased as the situations a user actually describes* — including the cases where the user needs it but won't name the tool. Avoid a long list of every operation, avoid alarming or over-broad words, and never narrate your design/debate process into the artifact: the agent does not care how the skill was made.
-- **Every warning must map to a reachable situation.** Before writing "do not trust X" or "beware Y", prove that situation actually occurs in the current implementation — that the field is really emitted, that the state is really producible. A warning for a state that only the old/buggy code could create, or that no real user can reach, is dead guidance: cut it. And if the same fact surfaces under more than one name, the warning must cover all of them.
-- **Keep it one file until length forces a split.** Progressive disclosure (splitting into reference files) is justified when the main file genuinely grows past a few hundred lines, or a single command needs a large flag matrix that would blow the context budget — not because some other skill is multi-file. Splitting a short skill just adds indirection (extra reads) for context you aren't short on.
-- **Embed the skill in the binary so it can never drift from the commands that exist.** Surface it via a `read` verb; if an externally-installed copy drifts, nudge the user to update. This prevents the skill from teaching a command the binary no longer has.
-
-## The one-line summary
-
-Building an agent-first CLI is designing a **contract a machine can reliably branch on**: every fact the agent can't infer is explicitly encoded, every fact it *can* infer is cut, and nothing requires parsing prose or guessing. Interface, I/O, and skill all serve that single rule.
+Before considering the design complete, verify that a fresh agent can determine the default action, every consequential branch, when to ask or stop, and how to prove the requested outcome.

@@ -18,6 +18,7 @@ A skill may also carry `references/` (docs loaded on demand), `scripts/`, or `as
 | Skill | What it's for |
 |-------|---------------|
 | [`agent-cli-design`](agent-cli-design/SKILL.md) | Designing a CLI (binary + companion skill) whose primary user is an AI agent rather than a human — its I/O contract, error model, what to expose vs hide from the underlying API, and how to write the skill that drives it. |
+| [`imagegen`](imagegen/SKILL.md) | Generating or editing raster images via the OpenAI Image API (official or any OpenAI-compatible relay/proxy endpoint) — a vendor-neutral port of the Codex `imagegen` skill with explicit endpoint/key configuration. |
 
 ## Installing a skill
 

@@ -14,7 +14,18 @@ Set a stable path to the skill CLI (use the absolute path of this skill's direct
 export IMAGE_GEN="<skill-dir>/scripts/image_gen.py"
 ```
 
-Install dependencies into that environment with its package manager. In uv-managed environments, `uv pip install ...` remains the preferred path.
+Install dependencies with the interpreter that will run the CLI. The scripts need `openai` (required) and `pillow` (chroma-key removal and downscaling). Resolution order:
+
+1. If `<skill-dir>/.venv/bin/python` exists and has both packages, use it for every command below. It is machine-local, git-ignored, and persists across sessions.
+2. Else if the active `python3` has both packages, use it.
+3. Else create the skill-local virtualenv once. It must live inside the skill directory — never in the user's current project or any other workspace:
+
+```bash
+cd "<skill-dir>"   # the skill's own directory; symlinks resolve to the real location
+uv venv .venv   # or: python3 -m venv .venv
+uv pip install -p .venv/bin/python openai pillow   # or: .venv/bin/pip install openai pillow
+# then run: "<skill-dir>/.venv/bin/python" "$IMAGE_GEN" ...
+```
 
 ## Endpoint and API key configuration
 

@@ -308,17 +308,21 @@ Popular `gpt-image-2` sizes:
 ### Dependencies
 Prefer `uv` for dependency management.
 
-Required Python package:
+The CLI needs the `openai` package; local chroma-key removal and optional downscaling need `pillow`. Resolve the interpreter to run the scripts in this order:
+
+1. If `<skill-dir>/.venv/bin/python` exists and can `import openai, PIL`, use it for all script invocations. This venv is machine-local and git-ignored; it persists across sessions.
+2. Otherwise, if the active `python3` can `import openai, PIL`, use it.
+3. Otherwise, create the skill-local virtualenv once and use it thereafter. It must live inside the skill directory — never create it in the user's current project or any other workspace:
+
 ```bash
-uv pip install openai
+cd "<skill-dir>"   # the skill's own directory; symlinks resolve to the real location
+uv venv .venv   # or: python3 -m venv .venv
+uv pip install -p .venv/bin/python openai pillow   # or: .venv/bin/pip install openai pillow
 ```
 
-Required for local chroma-key removal and optional downscaling:
-```bash
-uv pip install pillow
-```
+Then invoke the CLI as `"<skill-dir>/.venv/bin/python" scripts/image_gen.py ...` instead of bare `python3`.
 
-Portability note: install dependencies into whatever environment will run the CLI, using that environment's package manager. If installation is not possible, tell the user which dependency is missing and how to install it.
+Creating `.venv` only adds git-ignored local files; never modify tracked skill files to work around dependency issues. If installation is not possible, tell the user which dependency is missing and how to install it.
 
 ### Script-mode notes
 - CLI commands + examples: `references/cli.md`

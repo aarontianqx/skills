@@ -17,7 +17,7 @@ A skill may also carry `references/` (docs loaded on demand), `scripts/`, or `as
 
 | Skill | What it's for |
 |-------|---------------|
-| [`agent-cli-design`](agent-cli-design/SKILL.md) | Designing a CLI (binary + companion skill) whose primary user is an AI agent rather than a human — its I/O contract, error model, what to expose vs hide from the underlying API, and how to write the skill that drives it. |
+| [`agent-skill-design`](agent-skill-design/SKILL.md) | Designing skills for AI agents, including domain guidance, workflows, references, tools, and optional companion CLIs with stable agent-facing contracts. |
 | [`imagegen`](imagegen/SKILL.md) | Generating or editing raster images via the OpenAI Image API (official or any OpenAI-compatible relay/proxy endpoint) — a vendor-neutral port of the Codex `imagegen` skill with explicit endpoint/key configuration. |
 
 ## Installing a skill
@@ -26,7 +26,7 @@ Skills are discovered from a skills directory. To use one from this repo, place 
 
 ```bash
 # discoverable by Claude Code (and other agents reading ~/.claude/skills)
-ln -s "$PWD/agent-cli-design" ~/.claude/skills/agent-cli-design
+ln -s "$PWD/agent-skill-design" ~/.claude/skills/agent-skill-design
 ```
 
 If you keep a canonical store at `~/.agents/skills`, link there and mirror into `~/.claude/skills` to match how managed skills are laid out.

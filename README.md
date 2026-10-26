@@ -19,6 +19,7 @@ A skill may also carry `references/` (docs loaded on demand), `scripts/`, or `as
 |-------|---------------|
 | [`agent-skill-design`](agent-skill-design/SKILL.md) | Designing skills for AI agents, including domain guidance, workflows, references, tools, and optional companion CLIs with stable agent-facing contracts. |
 | [`imagegen`](imagegen/SKILL.md) | Generating or editing raster images via the OpenAI Image API (official or any OpenAI-compatible relay/proxy endpoint) — a vendor-neutral port of the Codex `imagegen` skill with explicit endpoint/key configuration. |
+| [`i-have-adhd`](i-have-adhd/SKILL.md) | Shaping output for a reader with ADHD: lead with the next action, number multi-step work, restate state across turns, suppress tangents. Vendored from [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT, see `i-have-adhd/LICENSE.txt`). |
 
 ## Installing a skill
 
